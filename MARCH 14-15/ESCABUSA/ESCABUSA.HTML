@@ -1,1 +1,479 @@
-ESCABUSA_
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Beam Deflection Visualizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0d0f1a;
+    color: #c8cfe8;
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  header h1 {
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: 0.15em;
+    color: #7ab3ff;
+    text-transform: uppercase;
+  }
+
+  header p {
+    font-size: 12px;
+    color: #5a6488;
+    margin-top: 4px;
+    letter-spacing: 0.1em;
+  }
+
+  #app {
+    width: 100%;
+    max-width: 860px;
+  }
+
+  #canvas-wrap {
+    position: relative;
+    width: 100%;
+    border: 1px solid #1e2540;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #080a14;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+  }
+
+  .controls {
+    background: #10121e;
+    border: 1px solid #1e2540;
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 12px;
+  }
+
+  .beam-type {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .bt-btn {
+    font-size: 11px;
+    padding: 6px 14px;
+    border: 1px solid #2a3060;
+    border-radius: 6px;
+    background: transparent;
+    color: #5a6488;
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+
+  .bt-btn:hover { border-color: #4466cc; color: #8aabff; }
+  .bt-btn.active {
+    background: rgba(60, 100, 220, 0.2);
+    color: #7ab3ff;
+    border-color: #4466cc;
+  }
+
+  .panel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+
+  .ctrl-group label {
+    font-size: 10px;
+    color: #5a6488;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .ctrl-group .val {
+    font-size: 15px;
+    font-weight: 400;
+    color: #7ab3ff;
+    margin-left: 6px;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: #1e2540;
+    border-radius: 2px;
+    outline: none;
+    margin-top: 6px;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #4466cc;
+    cursor: pointer;
+    border: 2px solid #7ab3ff;
+    transition: background 0.15s;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover { background: #6688ff; }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .stat {
+    background: #080a14;
+    border: 1px solid #1e2540;
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .stat .s-label {
+    font-size: 10px;
+    color: #3a4468;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .stat .s-val {
+    font-size: 18px;
+    color: #7ab3ff;
+    margin-top: 4px;
+  }
+
+  .stat .s-val.warn { color: #ff5544; }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    margin-top: 12px;
+    font-size: 11px;
+    color: #5a6488;
+    letter-spacing: 0.06em;
+    flex-wrap: wrap;
+  }
+
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>3D Beam Deflection</h1>
+  <p>Euler-Bernoulli beam theory · interactive visualizer</p>
+</header>
+
+<div id="app">
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="beam-type" id="btns">
+      <button class="bt-btn active" data-type="simply">Simply supported</button>
+      <button class="bt-btn" data-type="cantilever">Cantilever</button>
+      <button class="bt-btn" data-type="fixed">Fixed-fixed</button>
+    </div>
+
+    <div class="panel">
+      <div class="ctrl-group">
+        <label>Load (kN) <span class="val" id="lv">50</span></label>
+        <input type="range" min="5" max="200" value="50" step="5" id="load">
+      </div>
+      <div class="ctrl-group">
+        <label>Load position <span class="val" id="lpv">50</span>%</label>
+        <input type="range" min="5" max="95" value="50" step="1" id="lpos">
+      </div>
+      <div class="ctrl-group">
+        <label>E·I (GN·m²) <span class="val" id="eiv">4.0</span></label>
+        <input type="range" min="1" max="20" value="40" step="1" id="ei">
+      </div>
+      <div class="ctrl-group">
+        <label>Beam length (m) <span class="val" id="blv">10</span></label>
+        <input type="range" min="4" max="20" value="10" step="1" id="blen">
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="s-label">Max deflection</div><div class="s-val" id="s-defl">—</div></div>
+      <div class="stat"><div class="s-label">Reaction A</div><div class="s-val" id="s-ra">—</div></div>
+      <div class="stat"><div class="s-label">Reaction B</div><div class="s-val" id="s-rb">—</div></div>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:#3366cc"></span> Beam</span>
+      <span><span class="dot" style="background:#ff4433"></span> Deflection curve</span>
+      <span><span class="dot" style="background:#ffaa22"></span> Applied load</span>
+      <span><span class="dot" style="background:#667799"></span> Supports</span>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const canvas = document.getElementById('c');
+const W = canvas.parentElement.offsetWidth || 860;
+const H = Math.round(W * 0.55);
+canvas.width = W; canvas.height = H;
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio || 1);
+renderer.setSize(W, H);
+renderer.setClearColor(0x080a14, 1);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 500);
+camera.position.set(0, 6, 22);
+camera.lookAt(0, -1, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
+dirLight.position.set(8, 14, 10);
+scene.add(dirLight);
+const fillLight = new THREE.DirectionalLight(0x6688ff, 0.3);
+fillLight.position.set(-8, -4, -8);
+scene.add(fillLight);
+
+let state = { type: 'simply', P: 50, a_frac: 0.5, EI: 4.0, L: 10 };
+let beamMesh, deflMesh, arrowMesh, supportMeshes = [], gridMesh;
+
+function makeBeam(defPoints) {
+  const N = defPoints.length;
+  const bw = 0.18, bh = 0.28;
+  const verts = [], indices = [];
+  for (let i = 0; i < N; i++) {
+    const [x, y] = defPoints[i];
+    [[-bw/2,-bh/2],[bw/2,-bh/2],[bw/2,bh/2],[-bw/2,bh/2]].forEach(([cz,cy]) => {
+      verts.push(x, y + cy, cz);
+    });
+  }
+  for (let i = 0; i < N - 1; i++) {
+    const b = i * 4;
+    [[0,1,4,1,5,4],[1,2,5,2,6,5],[2,3,6,3,7,6],[3,0,7,0,4,7]].forEach(f => {
+      indices.push(b+f[0],b+f[1],b+f[2],b+f[3],b+f[4],b+f[5]);
+    });
+  }
+  const cap = b => indices.push(b,b+1,b+2,b,b+2,b+3);
+  cap(0); cap((N-1)*4);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshPhongMaterial({ color: 0x2255aa, shininess: 70 });
+  return new THREE.Mesh(geo, mat);
+}
+
+function makeDeflLine(defPoints) {
+  const curve = new THREE.CatmullRomCurve3(defPoints.map(([x,y]) => new THREE.Vector3(x, y - 0.19, 0)));
+  const geo = new THREE.BufferGeometry().setFromPoints(curve.getPoints(120));
+  return new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xff4433, linewidth: 2 }));
+}
+
+function makeSupport(x, type) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshPhongMaterial({ color: 0x667799, shininess: 30 });
+  if (type === 'pin') {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 0.35, 6), mat);
+    m.rotation.y = Math.PI / 6;
+    m.position.set(x, -0.32, 0);
+    group.add(m);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.07, 0.4), mat);
+    base.position.set(x, -0.54, 0);
+    group.add(base);
+  } else if (type === 'roller') {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 0.35, 6), mat);
+    m.rotation.y = Math.PI / 6;
+    m.position.set(x, -0.32, 0);
+    group.add(m);
+    const roll = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), mat);
+    roll.position.set(x, -0.58, 0);
+    group.add(roll);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.07, 0.4), mat);
+    base.position.set(x, -0.66, 0);
+    group.add(base);
+  } else if (type === 'fixed') {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.0, 0.55), mat);
+    wall.position.set(x, -0.18, 0);
+    group.add(wall);
+  }
+  return group;
+}
+
+function makeArrow(x, y, P_norm) {
+  const group = new THREE.Group();
+  const h = 0.5 + P_norm * 1.2;
+  const mat = new THREE.MeshPhongMaterial({ color: 0xffaa22, shininess: 50 });
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, h, 8), mat);
+  shaft.position.set(x, y + 0.19 + h / 2 + 0.25, 0);
+  group.add(shaft);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.28, 8), mat);
+  head.position.set(x, y + 0.19 + 0.14, 0);
+  group.add(head);
+  return group;
+}
+
+function makeGrid(L) {
+  const mat = new THREE.LineBasicMaterial({ color: 0x1a2040, transparent: true, opacity: 0.7 });
+  const pts = [];
+  const hw = L / 2 + 1;
+  for (let x = -Math.ceil(hw); x <= Math.ceil(hw); x++) {
+    pts.push(new THREE.Vector3(x, -1.1, -3), new THREE.Vector3(x, -1.1, 3));
+  }
+  for (let z = -3; z <= 3; z++) {
+    pts.push(new THREE.Vector3(-hw, -1.1, z), new THREE.Vector3(hw, -1.1, z));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  return new THREE.LineSegments(geo, mat);
+}
+
+function deflectionCurve(type, P, a_frac, EI, L, N = 60) {
+  const a = a_frac * L, b = L - a;
+  const scale = L / 10;
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    const xr = (i / N) * L;
+    const xi = xr - L / 2;
+    let y = 0;
+    if (type === 'simply') {
+      const RA = P * b / L;
+      const RB = P * a / L;
+      if (xr <= a) y = -(RA * xr * (L*L - b*b - xr*xr)) / (6*EI*L) * scale;
+      else         y = -(RB * (L-xr) * (2*L*xr - xr*xr - b*b)) / (6*EI*L) * scale;
+    } else if (type === 'cantilever') {
+      if (xr <= a) y = -(P * xr*xr * (3*a - xr)) / (6*EI) * scale;
+      else         y = -(P * a*a * (3*xr - a)) / (6*EI) * scale;
+    } else if (type === 'fixed') {
+      const MA = P * a * b*b / (L*L);
+      const MB = P * a*a * b / (L*L);
+      const RA = (P*b + MA - MB) / L + P*b*b/(L*L) * (3*a/L);
+      if (xr <= a) y = -(RA*xr*xr*xr/6 - MA*xr*xr/2) / EI * scale;
+      else         y = -(RA*xr*xr*xr/6 - MA*xr*xr/2 - P*(xr-a)*(xr-a)*(xr-a)/6) / EI * scale;
+    }
+    pts.push([xi, y]);
+  }
+  return pts;
+}
+
+function reactions(type, P, a_frac, L) {
+  const a = a_frac * L, b = L - a;
+  if (type === 'simply')    return { RA: P*b/L, RB: P*a/L };
+  if (type === 'cantilever') return { RA: P, RB: 0 };
+  if (type === 'fixed') {
+    const RA = P * b*b * (3*a + b) / (L*L*L);
+    return { RA, RB: P - RA };
+  }
+}
+
+function build() {
+  [beamMesh, deflMesh, arrowMesh, gridMesh].forEach(m => m && scene.remove(m));
+  supportMeshes.forEach(m => scene.remove(m));
+  supportMeshes = [];
+
+  const { type, P, a_frac, EI, L } = state;
+  const pts = deflectionCurve(type, P, a_frac, EI, L);
+  const lx = L / 2;
+
+  beamMesh = makeBeam(pts);     scene.add(beamMesh);
+  deflMesh = makeDeflLine(pts); scene.add(deflMesh);
+
+  const ax_idx = Math.round(a_frac * 60);
+  const [ax, ay] = pts[ax_idx];
+  arrowMesh = makeArrow(ax, ay, Math.min(P / 200, 1));
+  scene.add(arrowMesh);
+
+  gridMesh = makeGrid(L);
+  scene.add(gridMesh);
+
+  if (type === 'simply') {
+    supportMeshes.push(makeSupport(-lx, 'pin'), makeSupport(lx, 'roller'));
+  } else if (type === 'cantilever') {
+    supportMeshes.push(makeSupport(-lx, 'fixed'));
+  } else if (type === 'fixed') {
+    supportMeshes.push(makeSupport(-lx, 'fixed'), makeSupport(lx, 'fixed'));
+  }
+  supportMeshes.forEach(m => scene.add(m));
+
+  camera.position.set(0, 4 + L * 0.2, 14 + L * 0.6);
+  camera.lookAt(0, -0.5, 0);
+
+  const rx = reactions(type, P, a_frac, L);
+  const md = Math.max(...pts.map(p => Math.abs(p[1])));
+  const realDefl = (md / (L/10)) * 1000;
+  document.getElementById('s-defl').textContent = realDefl.toFixed(1) + ' mm';
+  document.getElementById('s-defl').className = 's-val' + (realDefl > 80 ? ' warn' : '');
+  document.getElementById('s-ra').textContent = rx.RA.toFixed(1) + ' kN';
+  document.getElementById('s-rb').textContent = rx.RB.toFixed(1) + ' kN';
+}
+
+let angle = 0.3;
+function animate() {
+  requestAnimationFrame(animate);
+  angle += 0.004;
+  const r = 22 + state.L * 0.5;
+  camera.position.x = Math.sin(angle) * r * 0.35;
+  camera.position.z = Math.cos(angle) * r;
+  camera.lookAt(0, -0.8, 0);
+  renderer.render(scene, camera);
+}
+
+document.getElementById('load').oninput = e => {
+  state.P = +e.target.value;
+  document.getElementById('lv').textContent = e.target.value;
+  build();
+};
+document.getElementById('lpos').oninput = e => {
+  state.a_frac = e.target.value / 100;
+  document.getElementById('lpv').textContent = e.target.value;
+  build();
+};
+document.getElementById('ei').oninput = e => {
+  state.EI = e.target.value / 10;
+  document.getElementById('eiv').textContent = state.EI.toFixed(1);
+  build();
+};
+document.getElementById('blen').oninput = e => {
+  state.L = +e.target.value;
+  document.getElementById('blv').textContent = e.target.value;
+  build();
+};
+document.querySelectorAll('.bt-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.bt-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.type = btn.dataset.type;
+    build();
+  };
+});
+
+build();
+animate();
+</script>
+</body>
+</html>
